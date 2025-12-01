@@ -31,16 +31,16 @@ helm install acme-corp . \
 
 ## Values
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `clientName` | Client identifier (used for namespace, DB) | `""` |
-| `clientDomain` | Full domain for the site | `""` |
-| `wordpress.image.tag` | WordPress version | `6.7-php8.3-apache` |
-| `valkey.image.tag` | Valkey version | `8.0` |
-| `mysql.host` | MySQL service hostname | `mysql.mysql-system.svc.cluster.local` |
-| `mysql.tls.enabled` | Enable TLS to MySQL | `true` |
-| `persistence.size` | Storage size for wp-content | `10Gi` |
-| `persistence.storageClass` | Storage class | `nfs-rwx` |
+| Parameter                  | Description                                | Default                                |
+| -------------------------- | ------------------------------------------ | -------------------------------------- |
+| `clientName`               | Client identifier (used for namespace, DB) | `""`                                   |
+| `clientDomain`             | Full domain for the site                   | `""`                                   |
+| `wordpress.image.tag`      | WordPress version                          | `6.7-php8.3-apache`                    |
+| `valkey.image.tag`         | Valkey version                             | `8.0`                                  |
+| `mysql.host`               | MySQL service hostname                     | `mysql.mysql-system.svc.cluster.local` |
+| `mysql.tls.enabled`        | Enable TLS to MySQL                        | `true`                                 |
+| `persistence.size`         | Storage size for wp-content                | `10Gi`                                 |
+| `persistence.storageClass` | Storage class                              | `nfs-rwx`                              |
 
 ## How It Works
 

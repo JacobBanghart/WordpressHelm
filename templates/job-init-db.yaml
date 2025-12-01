@@ -2,8 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: init-mysql-db
-  labels:
-    {{- include "wordpress-client.labels" . | nindent 4 }}
+  labels: { { - include "wordpress-client.labels" . | nindent 4 } }
   annotations:
     "helm.sh/hook": pre-install
     "helm.sh/hook-weight": "-5"
@@ -12,8 +11,7 @@ spec:
   backoffLimit: 3
   template:
     metadata:
-      labels:
-        {{- include "wordpress-client.labels" . | nindent 8 }}
+      labels: { { - include "wordpress-client.labels" . | nindent 8 } }
     spec:
       restartPolicy: Never
       serviceAccountName: db-init-sa
@@ -25,15 +23,15 @@ spec:
             - -c
             - |
               set -e
-              
+
               # Variables
               DB_NAME="{{ include "wordpress-client.dbName" . }}"
               DB_USER="{{ include "wordpress-client.dbUser" . }}"
               DB_PASS=$(openssl rand -base64 16 | tr -d '=+/')
-              
+
               echo "Creating database: ${DB_NAME}"
               echo "Creating user: ${DB_USER}"
-              
+
               # Connect to MySQL and create database + user
               mysql -h {{ .Values.mysql.host }} -P {{ .Values.mysql.port }} -u root -p"${MYSQL_ROOT_PASSWORD}" \
                 {{- if .Values.mysql.tls.enabled }}
@@ -45,9 +43,9 @@ spec:
               GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
               FLUSH PRIVILEGES;
               EOF
-              
+
               echo "Database and user created successfully"
-              
+
               # Create Kubernetes secret with credentials
               cat <<EOF | kubectl apply -f -
               apiVersion: v1
@@ -63,11 +61,11 @@ spec:
                 host: "{{ .Values.mysql.host }}"
                 port: "{{ .Values.mysql.port }}"
               EOF
-              
+
               echo "Secret created successfully"
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.mysql.rootSecretName }}
-                  key: {{ .Values.mysql.rootSecretKey }}
+                  name: { { .Values.mysql.rootSecretName } }
+                  key: { { .Values.mysql.rootSecretKey } }

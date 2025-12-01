@@ -1,6 +1,6 @@
 # Client-specific (set these per deployment)
-clientName: ""           # e.g., "acme-corp" - used for namespace, db name, etc.
-clientDomain: ""         # e.g., "acme-corp.clients.yourdomain.com"
+clientName: "" # e.g., "acme-corp" - used for namespace, db name, etc.
+clientDomain: "" # e.g., "acme-corp.clients.yourdomain.com"
 
 # WordPress settings
 wordpress:

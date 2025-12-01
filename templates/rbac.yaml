@@ -3,8 +3,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: db-init-sa
-  labels:
-    {{- include "wordpress-client.labels" . | nindent 4 }}
+  labels: { { - include "wordpress-client.labels" . | nindent 4 } }
   annotations:
     "helm.sh/hook": pre-install
     "helm.sh/hook-weight": "-10"
@@ -14,8 +13,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: db-init-role
-  labels:
-    {{- include "wordpress-client.labels" . | nindent 4 }}
+  labels: { { - include "wordpress-client.labels" . | nindent 4 } }
   annotations:
     "helm.sh/hook": pre-install
     "helm.sh/hook-weight": "-10"
@@ -29,8 +27,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: db-init-rolebinding
-  labels:
-    {{- include "wordpress-client.labels" . | nindent 4 }}
+  labels: { { - include "wordpress-client.labels" . | nindent 4 } }
   annotations:
     "helm.sh/hook": pre-install
     "helm.sh/hook-weight": "-10"
@@ -38,7 +35,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: db-init-sa
-    namespace: {{ .Release.Namespace }}
+    namespace: { { .Release.Namespace } }
 roleRef:
   kind: Role
   name: db-init-role
