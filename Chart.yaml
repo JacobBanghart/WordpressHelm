@@ -4,6 +4,7 @@ description: WordPress deployment for SaaS clients with Valkey sidecar cache
 type: application
 version: 0.1.0
 appVersion: "6.7"
+icon: https://s.w.org/style/images/about/WordPress-logotype-standard.png
 keywords:
   - wordpress
   - valkey
