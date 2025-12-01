@@ -1,0 +1,23 @@
+🎉 WordPress deployed for client: {{ .Values.clientName }}
+
+📍 Access your site at:
+   https://{{ .Values.clientDomain }}
+
+📊 Resources created:
+   - Namespace: {{ .Release.Namespace }}
+   - Database: {{ include "wordpress-client.dbName" . }}
+   - User: {{ include "wordpress-client.dbUser" . }}
+
+🔧 First-time setup:
+   1. Visit https://{{ .Values.clientDomain }}
+   2. Complete the WordPress installation wizard
+   3. Install Redis Object Cache plugin for Valkey integration
+
+📦 To check status:
+   kubectl get pods -n {{ .Release.Namespace }}
+   kubectl get ingress -n {{ .Release.Namespace }}
+
+🗑️ To uninstall:
+   helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+   
+   Note: Database and user in MySQL are NOT automatically removed.

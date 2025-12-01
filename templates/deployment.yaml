@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wordpress-client.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wordpress-client.labels" . | nindent 8 }}
+    spec:
+      containers:
+        # WordPress container
+        - name: wordpress
+          image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
+          imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: "{{ .Values.mysql.host }}:{{ .Values.mysql.port }}"
+            - name: WORDPRESS_DB_NAME
+              value: {{ include "wordpress-client.dbName" . }}
+            - name: WORDPRESS_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-db-credentials
+                  key: username
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wordpress-db-credentials
+                  key: password
+            {{- if .Values.mysql.tls.enabled }}
+            # Force SSL connection to MySQL
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('MYSQL_CLIENT_FLAGS', MYSQLI_CLIENT_SSL);
+                define('WP_REDIS_HOST', '127.0.0.1');
+                define('WP_REDIS_PORT', 6379);
+            {{- else }}
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('WP_REDIS_HOST', '127.0.0.1');
+                define('WP_REDIS_PORT', 6379);
+            {{- end }}
+          volumeMounts:
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+          resources:
+            {{- toYaml .Values.wordpress.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /wp-admin/install.php
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /wp-admin/install.php
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+        # Valkey sidecar (Redis-compatible cache)
+        - name: valkey
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.valkey.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - valkey-cli
+                - ping
+            initialDelaySeconds: 3
+            periodSeconds: 3
+
+      volumes:
+        - name: wp-content
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: wordpress-content
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

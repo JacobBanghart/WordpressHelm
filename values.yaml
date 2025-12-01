@@ -1,0 +1,56 @@
+# Client-specific (set these per deployment)
+clientName: ""           # e.g., "acme-corp" - used for namespace, db name, etc.
+clientDomain: ""         # e.g., "acme-corp.clients.yourdomain.com"
+
+# WordPress settings
+wordpress:
+  image:
+    repository: wordpress
+    tag: "6.7-php8.3-apache"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Valkey (Redis-compatible) sidecar
+valkey:
+  image:
+    repository: valkey/valkey
+    tag: "8.0"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+# Shared MySQL connection
+mysql:
+  host: "mysql.mysql-system.svc.cluster.local"
+  port: 3306
+  # Root credentials secret (for init job to create DB/user)
+  rootSecretName: "mysql-root-credentials"
+  rootSecretKey: "password"
+  # Enable TLS for MySQL connections
+  tls:
+    enabled: true
+
+# Storage for wp-content
+persistence:
+  enabled: true
+  storageClass: "nfs-rwx"
+  size: "10Gi"
+
+# Ingress (Traefik)
+ingress:
+  enabled: true
+  className: "traefik"
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"

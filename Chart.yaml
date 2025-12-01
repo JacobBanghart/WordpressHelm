@@ -1,0 +1,13 @@
+apiVersion: v2
+name: wordpress-client
+description: WordPress deployment for SaaS clients with Valkey sidecar cache
+type: application
+version: 0.1.0
+appVersion: "6.7"
+keywords:
+  - wordpress
+  - valkey
+  - redis
+  - cache
+maintainers:
+  - name: Jacob Banghart

@@ -1,0 +1,45 @@
+# ServiceAccount for the init job (needs to create secrets)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-init-sa
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: db-init-role
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "update", "patch", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: db-init-rolebinding
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+subjects:
+  - kind: ServiceAccount
+    name: db-init-sa
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: db-init-role
+  apiGroup: rbac.authorization.k8s.io
