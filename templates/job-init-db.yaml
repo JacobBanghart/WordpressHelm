@@ -17,44 +17,66 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: db-init-sa
-      containers:
-        - name: init-db
+      initContainers:
+        # First: Get MySQL root password and generate user password
+        - name: get-secrets
           image: bitnami/kubectl:latest
           command:
             - /bin/bash
             - -c
             - |
               set -e
-
-              # Get MySQL root password from mysql-system namespace
-              MYSQL_ROOT_PASSWORD=$(kubectl get secret {{ .Values.mysql.rootSecretName }} -n mysql-system -o jsonpath='{.data.{{ .Values.mysql.rootSecretKey }}}' | base64 -d)
-
-              # Variables
+              # Get MySQL root password
+              kubectl get secret {{ .Values.mysql.rootSecretName }} -n mysql-system -o jsonpath='{.data.{{ .Values.mysql.rootSecretKey }}}' | base64 -d > /shared/mysql-root-password
+              # Generate random password for WordPress DB user
+              cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 24 | head -n 1 > /shared/db-password
+              echo "Secrets retrieved and password generated"
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+        # Second: Create database and user
+        - name: create-db
+          image: mysql:8.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              MYSQL_ROOT_PASSWORD=$(cat /shared/mysql-root-password)
+              DB_PASS=$(cat /shared/db-password)
               DB_NAME="{{ include "wordpress-client.dbName" . }}"
               DB_USER="{{ include "wordpress-client.dbUser" . }}"
-              DB_PASS=$(openssl rand -base64 16 | tr -d '=+/')
 
               echo "Creating database: ${DB_NAME}"
               echo "Creating user: ${DB_USER}"
 
-              # Install mysql client
-              apt-get update && apt-get install -y default-mysql-client
-
-              # Connect to MySQL and create database + user
               mysql -h {{ .Values.mysql.host }} -P {{ .Values.mysql.port }} -u root -p"${MYSQL_ROOT_PASSWORD}" \
                 {{- if .Values.mysql.tls.enabled }}
                 --ssl-mode=REQUIRED \
                 {{- end }}
-                << EOSQL
+                -e "
               CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
               CREATE USER IF NOT EXISTS '${DB_USER}'@'%' IDENTIFIED BY '${DB_PASS}';
               GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%';
               FLUSH PRIVILEGES;
-              EOSQL
-
+              "
               echo "Database and user created successfully"
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      containers:
+        # Third: Create Kubernetes secret
+        - name: create-secret
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              DB_PASS=$(cat /shared/db-password)
+              DB_NAME="{{ include "wordpress-client.dbName" . }}"
+              DB_USER="{{ include "wordpress-client.dbUser" . }}"
 
-              # Create Kubernetes secret with credentials
               kubectl create secret generic wordpress-db-credentials \
                 --namespace={{ .Release.Namespace }} \
                 --from-literal=username="${DB_USER}" \
@@ -65,3 +87,9 @@ spec:
                 --dry-run=client -o yaml | kubectl apply -f -
 
               echo "Secret created successfully"
+          volumeMounts:
+            - name: shared
+              mountPath: /shared
+      volumes:
+        - name: shared
+          emptyDir: {}
