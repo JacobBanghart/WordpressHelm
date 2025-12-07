@@ -1,8 +1,55 @@
-# Client-specific (set these per deployment)
-clientName: "" # e.g., "acme-corp" - used for namespace, db name, etc.
-clientDomain: "" # e.g., "acme-corp.clients.yourdomain.com"
+# =============================================================================
+# WordPress Client Helm Chart - Per-Client Isolated Architecture
+# =============================================================================
+# Each client gets their own:
+#   - WordPress container
+#   - MariaDB sidecar (isolated database)
+#   - Valkey sidecar (Redis cache)
+#   - Persistent storage for both wp-content and MySQL data
+# =============================================================================
 
-# WordPress settings
+# Client-specific (REQUIRED - set these per deployment)
+clientName: ""   # e.g., "acme-corp" - used for labels and identification
+clientDomain: "" # e.g., "acme-corp.clients.yourdomain.com"
+clientEmail: ""  # e.g., "client@example.com" - for notifications (future)
+
+# Plan selection (basic, pro, enterprise)
+plan: "basic"
+
+# Plan-based resource tiers
+# These define TOTAL namespace limits (WordPress + MariaDB + Valkey)
+plans:
+  basic:
+    requests:
+      cpu: "500m"
+      memory: "768Mi"
+    limits:
+      cpu: "1500m"
+      memory: "1536Mi"
+    wpStorage: "5Gi"    # WordPress wp-content
+    dbStorage: "2Gi"    # MariaDB data
+  pro:
+    requests:
+      cpu: "1000m"
+      memory: "1536Mi"
+    limits:
+      cpu: "3000m"
+      memory: "3Gi"
+    wpStorage: "20Gi"
+    dbStorage: "5Gi"
+  enterprise:
+    requests:
+      cpu: "2000m"
+      memory: "3Gi"
+    limits:
+      cpu: "6000m"
+      memory: "6Gi"
+    wpStorage: "50Gi"
+    dbStorage: "10Gi"
+
+# =============================================================================
+# WordPress Settings
+# =============================================================================
 wordpress:
   image:
     repository: wordpress
@@ -11,12 +58,30 @@ wordpress:
   resources:
     requests:
       cpu: "100m"
-      memory: "128Mi"
+      memory: "256Mi"
     limits:
       cpu: "500m"
       memory: "512Mi"
 
-# Valkey (Redis-compatible) sidecar
+# =============================================================================
+# MariaDB Sidecar (Per-Client Database)
+# =============================================================================
+mariadb:
+  image:
+    repository: mariadb
+    tag: "11.4"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# =============================================================================
+# Valkey Sidecar (Redis-compatible Cache)
+# =============================================================================
 valkey:
   image:
     repository: valkey/valkey
@@ -30,27 +95,25 @@ valkey:
       cpu: "100m"
       memory: "128Mi"
 
-# Shared MySQL connection
-mysql:
-  host: "mysql.mysql-system.svc.cluster.local"
-  port: 3306
-  # Root credentials secret (for init job to create DB/user)
-  rootSecretName: "mysql-root-credentials"
-  rootSecretKey: "password"
-  # Enable TLS for MySQL connections
-  tls:
-    enabled: true
-
-# Storage for wp-content
+# =============================================================================
+# Storage
+# =============================================================================
 persistence:
   enabled: true
   storageClass: "nfs-rwx"
-  size: "10Gi"
 
+# =============================================================================
 # Ingress (Traefik)
+# =============================================================================
 ingress:
   enabled: true
   className: "traefik"
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
+
+# =============================================================================
+# Network Isolation
+# =============================================================================
+networkPolicy:
+  enabled: true

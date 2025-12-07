@@ -1,0 +1,39 @@
+{{- $plan := .Values.plan | default "basic" }}
+{{- $resources := index .Values.plans $plan }}
+{{- $totalStorage := add (trimSuffix "Gi" $resources.wpStorage | int) (trimSuffix "Gi" $resources.dbStorage | int) }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: client-quota
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+spec:
+  hard:
+    requests.cpu: {{ $resources.requests.cpu | quote }}
+    requests.memory: {{ $resources.requests.memory | quote }}
+    limits.cpu: {{ $resources.limits.cpu | quote }}
+    limits.memory: {{ $resources.limits.memory | quote }}
+    persistentvolumeclaims: "3"
+    requests.storage: {{ printf "%dGi" $totalStorage | quote }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: client-limits
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "200m"
+        memory: "256Mi"
+      defaultRequest:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: {{ $resources.limits.cpu | quote }}
+        memory: {{ $resources.limits.memory | quote }}
+    - type: PersistentVolumeClaim
+      max:
+        storage: {{ $resources.wpStorage | quote }}

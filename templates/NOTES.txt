@@ -3,21 +3,28 @@
 📍 Access your site at:
    https://{{ .Values.clientDomain }}
 
-📊 Resources created:
-   - Namespace: {{ .Release.Namespace }}
-   - Database: {{ include "wordpress-client.dbName" . }}
-   - User: {{ include "wordpress-client.dbUser" . }}
+📊 Architecture (per-client isolated):
+   - WordPress: PHP 8.3 + Apache
+   - MariaDB: Dedicated database (sidecar)
+   - Valkey: Redis-compatible cache (sidecar)
+   - Plan: {{ .Values.plan }}
 
 🔧 First-time setup:
-   1. Visit https://{{ .Values.clientDomain }}
-   2. Complete the WordPress installation wizard
-   3. Install Redis Object Cache plugin for Valkey integration
+   1. Wait for pod to be ready (MariaDB init takes ~30-60s)
+   2. Visit https://{{ .Values.clientDomain }}
+   3. Complete the WordPress installation wizard
+   4. Install "Redis Object Cache" plugin for caching
 
-📦 To check status:
+📦 Check status:
    kubectl get pods -n {{ .Release.Namespace }}
-   kubectl get ingress -n {{ .Release.Namespace }}
+   kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Values.clientName }} -c wordpress
 
-🗑️ To uninstall:
+💾 Backup (entire client data):
+   # Backup both PVCs for complete restore capability
+   kubectl get pvc -n {{ .Release.Namespace }}
+
+🗑️ Uninstall:
    helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+   kubectl delete namespace {{ .Release.Namespace }}
    
-   Note: Database and user in MySQL are NOT automatically removed.
+   ⚠️  This will DELETE all client data (WordPress files + database)!
