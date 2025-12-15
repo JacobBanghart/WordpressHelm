@@ -31,24 +31,68 @@ spec:
               mkdir -p /var/lib/mysql
               chown -R 999:999 /var/lib/mysql
               chmod 755 /var/lib/mysql
+              # Create nginx cache directory
+              mkdir -p /var/cache/nginx
+              chmod 777 /var/cache/nginx
           volumeMounts:
             - name: wp-content
               mountPath: /var/www/html/wp-content
             - name: mysql-data
               mountPath: /var/lib/mysql
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
           securityContext:
             runAsUser: 0
 
       containers:
         # ===================
-        # WordPress Container
+        # Nginx Container (serves requests, handles caching)
+        # ===================
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: wordpress-files
+              mountPath: /var/www/html
+            - name: wp-content
+              mountPath: /var/www/html/wp-content
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /nginx-health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /nginx-health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+        # ===================
+        # WordPress PHP-FPM Container
         # ===================
         - name: wordpress
           image: "{{ .Values.wordpress.image.repository }}:{{ .Values.wordpress.image.tag }}"
           imagePullPolicy: {{ .Values.wordpress.image.pullPolicy }}
           ports:
-            - name: http
-              containerPort: 80
+            - name: php-fpm
+              containerPort: 9000
               protocol: TCP
           env:
             - name: WORDPRESS_DB_HOST
@@ -67,26 +111,26 @@ spec:
                 define('WP_REDIS_HOST', '127.0.0.1');
                 define('WP_REDIS_PORT', 6379);
           volumeMounts:
+            - name: wordpress-files
+              mountPath: /var/www/html
             - name: wp-content
               mountPath: /var/www/html/wp-content
           resources:
             {{- toYaml .Values.wordpress.resources | nindent 12 }}
           livenessProbe:
-            httpGet:
-              path: /wp-admin/install.php
-              port: http
-            initialDelaySeconds: 120
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-          readinessProbe:
-            httpGet:
-              path: /wp-admin/install.php
-              port: http
+            tcpSocket:
+              port: 9000
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
 
         # ================
         # MariaDB Sidecar
@@ -165,6 +209,8 @@ spec:
             periodSeconds: 3
 
       volumes:
+        - name: wordpress-files
+          emptyDir: {}
         - name: wp-content
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
@@ -179,3 +225,8 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: nginx-cache
+          emptyDir: {}

@@ -48,12 +48,12 @@ plans:
     dbStorage: "10Gi"
 
 # =============================================================================
-# WordPress Settings
+# WordPress Settings (PHP-FPM)
 # =============================================================================
 wordpress:
   image:
     repository: wordpress
-    tag: "6.7-php8.3-apache"
+    tag: "6.7-php8.3-fpm"
     pullPolicy: IfNotPresent
   resources:
     requests:
@@ -62,6 +62,22 @@ wordpress:
     limits:
       cpu: "500m"
       memory: "512Mi"
+
+# =============================================================================
+# Nginx Sidecar (Reverse Proxy + FastCGI Cache)
+# =============================================================================
+nginx:
+  image:
+    repository: nginx
+    tag: "1.27-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
 
 # =============================================================================
 # MariaDB Sidecar (Per-Client Database)

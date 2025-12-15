@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  labels:
+    {{- include "wordpress-client.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /tmp/nginx.pid;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for" '
+                        'cache:$upstream_cache_status rt=$request_time';
+
+        access_log /var/log/nginx/access.log main;
+
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        client_max_body_size 64M;
+
+        # Gzip compression
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/xml application/json application/javascript 
+                   application/rss+xml application/atom+xml image/svg+xml;
+
+        # FastCGI cache configuration
+        fastcgi_cache_path /var/cache/nginx levels=1:2 keys_zone=wordpress:100m inactive=60m max_size=512m;
+        fastcgi_cache_key "$scheme$request_method$host$request_uri";
+        fastcgi_cache_use_stale error timeout updating invalid_header http_500 http_503;
+        fastcgi_cache_background_update on;
+        fastcgi_cache_lock on;
+
+        server {
+            listen 80;
+            server_name _;
+            root /var/www/html;
+            index index.php index.html;
+
+            # Health check endpoint (bypass cache)
+            location = /nginx-health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+
+            # Cache bypass conditions
+            set $skip_cache 0;
+
+            # Don't cache POST requests
+            if ($request_method = POST) {
+                set $skip_cache 1;
+            }
+
+            # Don't cache URLs with query strings (except common static ones)
+            if ($query_string != "") {
+                set $skip_cache 1;
+            }
+
+            # Don't cache logged-in users
+            if ($http_cookie ~* "wordpress_logged_in") {
+                set $skip_cache 1;
+            }
+
+            # Don't cache comment authors
+            if ($http_cookie ~* "comment_author") {
+                set $skip_cache 1;
+            }
+
+            # Don't cache WooCommerce sessions
+            if ($http_cookie ~* "woocommerce_") {
+                set $skip_cache 1;
+            }
+
+            # Don't cache wp-admin or wp-login
+            if ($request_uri ~* "^/wp-admin/|^/wp-login\.php|^/xmlrpc\.php") {
+                set $skip_cache 1;
+            }
+
+            # Don't cache wp-cron or feeds
+            if ($request_uri ~* "/wp-cron\.php|/feed/|sitemap") {
+                set $skip_cache 1;
+            }
+
+            # Static files - serve directly with long cache
+            location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
+                expires 1y;
+                add_header Cache-Control "public, immutable";
+                access_log off;
+                try_files $uri =404;
+            }
+
+            # WordPress uploads
+            location ~ ^/wp-content/uploads/ {
+                expires 1y;
+                add_header Cache-Control "public";
+                try_files $uri =404;
+            }
+
+            # Deny access to sensitive files
+            location ~ /\.(ht|git|svn) {
+                deny all;
+            }
+
+            location ~ ^/wp-content/debug\.log$ {
+                deny all;
+            }
+
+            # Main location
+            location / {
+                try_files $uri $uri/ /index.php?$args;
+            }
+
+            # PHP handling with FastCGI cache
+            location ~ \.php$ {
+                try_files $uri =404;
+                fastcgi_split_path_info ^(.+\.php)(/.+)$;
+                fastcgi_pass 127.0.0.1:9000;
+                fastcgi_index index.php;
+                include fastcgi_params;
+                fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                fastcgi_param PATH_INFO $fastcgi_path_info;
+                
+                # Timeouts
+                fastcgi_connect_timeout 60s;
+                fastcgi_send_timeout 60s;
+                fastcgi_read_timeout 60s;
+                fastcgi_buffer_size 128k;
+                fastcgi_buffers 256 16k;
+                fastcgi_busy_buffers_size 256k;
+                fastcgi_temp_file_write_size 256k;
+
+                # FastCGI cache settings
+                fastcgi_cache wordpress;
+                fastcgi_cache_valid 200 301 302 60m;
+                fastcgi_cache_valid 404 1m;
+                fastcgi_cache_bypass $skip_cache;
+                fastcgi_no_cache $skip_cache;
+
+                # Add cache status header for debugging
+                add_header X-FastCGI-Cache $upstream_cache_status;
+                add_header X-Cache-Status $upstream_cache_status;
+            }
+        }
+    }
